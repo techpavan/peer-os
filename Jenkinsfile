@@ -24,6 +24,7 @@ try {
             case ~/master/: cdnHost = "masterbazaar.subutai.io"; break;
             case ~/dev/: cdnHost = "devbazaar.subutai.io"; break;
             case ~/sysnet/: cdnHost = "devbazaar.subutai.io"; break;
+            case ~/jenkins/: cdnHost = "devbazaar.subutai.io"; break;
             default: cdnHost = "bazaar.subutai.io"
         }
 
@@ -31,6 +32,7 @@ try {
             case ~/master/: jumpServer = "mastercdn.subutai.io"; break;
             case ~/dev/: jumpServer = "devcdn.subutai.io"; break;
             case ~/sysnet/: jumpServer = "sysnetcdn.subutai.io"; break;
+            case ~/jenkins/: jumpServer = "sysnetcdn.subutai.io"; break;
             default: jumpServer = "cdn.subutai.io"
         }
 
@@ -38,6 +40,7 @@ try {
             case ~/master/: aptRepo = "master"; break;
             case ~/dev/: aptRepo = "dev"; break;
             case ~/sysnet/: aptRepo = "sysnet"; break;
+            case ~/jenkins/: aptRepo = "sysnet"; break;
             default: aptRepo = "prod"
         }
         // build deb
@@ -53,6 +56,22 @@ try {
         branch=`git symbolic-ref --short HEAD` && echo "Branch is \$branch"
         find ${workspace}/management/server/server-karaf/target/ -name *.deb | xargs -I {} cp {} ${workspace}/${debFileName}
         """        
+        stash includes: "management-*.deb", name: 'deb'
+
+        if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME == 'dev' || env.BRANCH_NAME == 'sysnet'  || env.BRANCH_NAME == 'jenkins') {
+            stage("Upload to REPO")
+            notifyBuildDetails = "\nFailed Step - Upload to Repo"
+            deleteDir()
+
+            unstash 'deb'
+
+            //copy deb to repo
+            sh """
+            touch uploading_management
+            scp uploading_management ${debFileName} dak@deb.subutai.io:incoming/${env.BRANCH_NAME}/
+            ssh dak@deb.subutai.io sh /var/reprepro/scripts/scan-incoming.sh ${env.BRANCH_NAME} management
+            """
+        }
     }
 
     node("template-builder") {
@@ -144,24 +163,6 @@ try {
             sed -i 's/"id":""/"id":"${NEW_ID}"/g' /tmp/template.json
             template=`cat /tmp/template.json` && curl -d "token=${token}&template=\$template" https://${cdnHost}/rest/v1/cdn/templates
             """
-    }
-    node("console") {
-        stash includes: "management-*.deb", name: 'deb'
-
-        if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME == 'dev' || env.BRANCH_NAME == 'sysnet') {
-            stage("Upload to CDN")
-            notifyBuildDetails = "\nFailed Step - Upload to CDN"
-            deleteDir()
-
-            unstash 'deb'
-
-            //copy deb to repo
-            sh """
-            touch uploading_management
-            scp uploading_management ${debFileName} dak@deb.subutai.io:incoming/${env.BRANCH_NAME}/
-            ssh dak@deb.subutai.io sh /var/reprepro/scripts/scan-incoming.sh ${env.BRANCH_NAME} management
-            """
-        }
     }
 } catch (e) {
         currentBuild.result = "FAILED"
