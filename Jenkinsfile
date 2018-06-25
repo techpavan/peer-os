@@ -63,6 +63,7 @@ try {
         sh """
             cp ${debFileName} /tmp
         """
+        
         stash includes: "management-*.deb", name: 'deb'
         
         if (env.BRANCH_NAME =='jenkins') {
@@ -80,7 +81,7 @@ try {
             """
         }
         if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME == 'dev' || env.BRANCH_NAME == 'sysnet') {
-            stage("Upload to REPO")
+            stage("Upload to REPO") {
             notifyBuildDetails = "\nFailed Step - Upload to Repo"
             deleteDir()
 
@@ -92,14 +93,11 @@ try {
             scp uploading_management ${debFileName} dak@deb.subutai.io:incoming/${env.BRANCH_NAME}/
             ssh dak@deb.subutai.io sh /var/reprepro/scripts/scan-incoming.sh ${env.BRANCH_NAME} management
             """
- 
+            }
         }
     }
 
     node("template-builder") {
-        stage("Build management template")
-        notifyBuildDetails = "\nFailed Step - Build management template"
-        
         // CDN auth credentials
         String user = "jenkins@optimal-dynamics.com"
         String fingerprint = "877B586E74F170BC4CF6ECABB971E2AC63D23DC9"
@@ -114,7 +112,10 @@ try {
         def token = sh(script: """
             curl -s --data-urlencode "request=${sign}"  https://${cdnHost}/rest/v1/cdn/token
             """, returnStdout: true)
-        token = token.trim()         
+        token = token.trim()     
+        stage("Build management template")
+        notifyBuildDetails = "\nFailed Step - Build management template"
+                
         // create management template
             sh """
 			set +x
