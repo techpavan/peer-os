@@ -7,6 +7,7 @@ aptRepo = ""
 
 try {
     notifyBuild('STARTED')
+    String debFileName = "management-${env.BRANCH_NAME}.deb"
     node("console") {
         deleteDir()
         def mvnHome = tool 'M3'
