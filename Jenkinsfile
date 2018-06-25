@@ -19,8 +19,7 @@ try {
 
         checkout scm
         def artifactVersion = getVersion("management/pom.xml")
-        String debFileName = "management-${env.BRANCH_NAME}.deb"
-
+        
         switch (env.BRANCH_NAME) {
             case ~/master/: cdnHost = "masterbazaar.subutai.io"; break;
             case ~/dev/: cdnHost = "devbazaar.subutai.io"; break;
