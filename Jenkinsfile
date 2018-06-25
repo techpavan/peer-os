@@ -106,7 +106,7 @@ try {
             """, returnStdout: true)
         authId = authId.trim()
         def sign = sh(script: """
-            echo ${authId} | gpg --clearsign -u ${user}
+            echo ${authId} | gpg1 --clearsign -u ${user}
             """, returnStdout: true)
         sign = sign.trim()
         def token = sh(script: """
