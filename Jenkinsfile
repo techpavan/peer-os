@@ -8,19 +8,18 @@ aptRepo = ""
 try {
     notifyBuild('STARTED')
     String debFileName = "management-${env.BRANCH_NAME}.deb"
-    def artifactVersion = getVersion("management/pom.xml")
-    
     node("console") {
         deleteDir()
         def mvnHome = tool 'M3'
         def workspace = pwd()
 
-        stage("Build management deb package")
+        stage("Build management deb package") 
         // Use maven to to build deb and template files of management
         notifyBuildDetails = "\nFailed Step - Build management deb package"
 
         checkout scm
-               
+        def artifactVersion = getVersion("management/pom.xml")
+        
         switch (env.BRANCH_NAME) {
             case ~/master/: cdnHost = "masterbazaar.subutai.io"; break;
             case ~/dev/: cdnHost = "devbazaar.subutai.io"; break;
