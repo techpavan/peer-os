@@ -8,6 +8,31 @@ aptRepo = ""
 try {
     notifyBuild('STARTED')
     String debFileName = "management-${env.BRANCH_NAME}.deb"
+    
+    switch (env.BRANCH_NAME) {
+        case ~/master/: cdnHost = "masterbazaar.subutai.io"; break;
+        case ~/dev/: cdnHost = "devbazaar.subutai.io"; break;
+        case ~/sysnet/: cdnHost = "devbazaar.subutai.io"; break;
+        case ~/jenkins/: cdnHost = "devbazaar.subutai.io"; break;
+        default: cdnHost = "bazaar.subutai.io"
+    }
+
+    switch (env.BRANCH_NAME) {
+        case ~/master/: jumpServer = "mastercdn.subutai.io"; break;
+        case ~/dev/: jumpServer = "devcdn.subutai.io"; break;
+        case ~/sysnet/: jumpServer = "sysnetcdn.subutai.io"; break;
+        case ~/jenkins/: jumpServer = "sysnetcdn.subutai.io"; break;
+        default: jumpServer = "cdn.subutai.io"
+    }
+
+    switch (env.BRANCH_NAME) {
+        case ~/master/: aptRepo = "master"; break;
+        case ~/dev/: aptRepo = "dev"; break;
+        case ~/sysnet/: aptRepo = "sysnet"; break;
+        case ~/jenkins/: aptRepo = "sysnet"; break;
+        default: aptRepo = "prod"
+    }
+    
     node("console") {
         deleteDir()
         def mvnHome = tool 'M3'
@@ -20,29 +45,7 @@ try {
         checkout scm
         def artifactVersion = getVersion("management/pom.xml")
         
-        switch (env.BRANCH_NAME) {
-            case ~/master/: cdnHost = "masterbazaar.subutai.io"; break;
-            case ~/dev/: cdnHost = "devbazaar.subutai.io"; break;
-            case ~/sysnet/: cdnHost = "devbazaar.subutai.io"; break;
-            case ~/jenkins/: cdnHost = "devbazaar.subutai.io"; break;
-            default: cdnHost = "bazaar.subutai.io"
-        }
 
-        switch (env.BRANCH_NAME) {
-            case ~/master/: jumpServer = "mastercdn.subutai.io"; break;
-            case ~/dev/: jumpServer = "devcdn.subutai.io"; break;
-            case ~/sysnet/: jumpServer = "sysnetcdn.subutai.io"; break;
-            case ~/jenkins/: jumpServer = "sysnetcdn.subutai.io"; break;
-            default: jumpServer = "cdn.subutai.io"
-        }
-
-        switch (env.BRANCH_NAME) {
-            case ~/master/: aptRepo = "master"; break;
-            case ~/dev/: aptRepo = "dev"; break;
-            case ~/sysnet/: aptRepo = "sysnet"; break;
-            case ~/jenkins/: aptRepo = "sysnet"; break;
-            default: aptRepo = "prod"
-        }
         // build deb
         sh """
 		cd management
@@ -85,6 +88,10 @@ try {
             scp uploading_management ${debFileName} dak@deb.subutai.io:incoming/${env.BRANCH_NAME}/
             ssh dak@deb.subutai.io sh /var/reprepro/scripts/scan-incoming.sh ${env.BRANCH_NAME} management
             """
+
+            sh """
+            cp ${debFileName} /tmp
+            """
         }
     }
 
@@ -118,7 +125,7 @@ try {
 			sudo subutai destroy management
             sudo subutai clone debian-stretch management
 			/bin/sleep 20
-			scp jenkins-master:${workspace}/${debFileName} /var/lib/lxc/management/rootfs/tmp/
+			scp jenkins-master:/tmp/${debFileName} /var/lib/lxc/management/rootfs/tmp/
 			sudo subutai attach management "apt-get update && apt-get install dirmngr -y"
 			sudo subutai attach management "apt-key adv --recv-keys --keyserver keyserver.ubuntu.com C6B2AC7FBEB649F1"
 			sudo subutai attach management "echo 'deb http://deb.subutai.io/subutai ${aptRepo} main' > /etc/apt/sources.list.d/subutai-repo.list"
