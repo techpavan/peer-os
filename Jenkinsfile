@@ -5,10 +5,9 @@ cdnHost = ""
 jumpServer = ""
 aptRepo = ""
 
-node() {
-    // Send job started notifications
-    try {
-        notifyBuild('STARTED')
+try {
+    notifyBuild('STARTED')
+    node("console") {
         deleteDir()
         def mvnHome = tool 'M3'
         def workspace = pwd()
@@ -53,8 +52,13 @@ node() {
 		fi		
         branch=`git symbolic-ref --short HEAD` && echo "Branch is \$branch"
         find ${workspace}/management/server/server-karaf/target/ -name *.deb | xargs -I {} cp {} ${workspace}/${debFileName}
-	    """
+        """        
+    }
 
+    node("template-builder") {
+        stage("Build management template")
+        notifyBuildDetails = "\nFailed Step - Build management template"
+        
         // CDN auth credentials
         String user = "jenkins@optimal-dynamics.com"
         String fingerprint = "877B586E74F170BC4CF6ECABB971E2AC63D23DC9"
@@ -69,17 +73,11 @@ node() {
         def token = sh(script: """
             curl -s --data-urlencode "request=${sign}"  https://${cdnHost}/rest/v1/cdn/token
             """, returnStdout: true)
-        token = token.trim()
-        stage("Build management template")
-        notifyBuildDetails = "\nFailed Step - Build management template"
-
-
-        lock('deb') {
-
-            // create management template
+        token = token.trim()         
+        // create management template
             sh """
 			set +x
-            ssh admin@172.31.0.253 <<- EOF
+           
 			set -e
 		    echo ${token}
             sudo sed 's/URL =.*/URL = ${cdnHost}/gI' -i /etc/subutai/agent.conf
@@ -87,7 +85,7 @@ node() {
 			sudo subutai destroy management
             sudo subutai clone debian-stretch management
 			/bin/sleep 20
-			scp ubuntu@${env.master_rh}:/mnt/lib/lxc/jenkins${workspace}/${debFileName} /var/lib/lxc/management/rootfs/tmp/
+			scp jenkins-master:${workspace}/${debFileName} /var/lib/lxc/management/rootfs/tmp/
 			sudo subutai attach management "apt-get update && apt-get install dirmngr -y"
 			sudo subutai attach management "apt-key adv --recv-keys --keyserver keyserver.ubuntu.com C6B2AC7FBEB649F1"
 			sudo subutai attach management "echo 'deb http://deb.subutai.io/subutai ${aptRepo} main' > /etc/apt/sources.list.d/subutai-repo.list"
@@ -110,8 +108,9 @@ node() {
 			sudo subutai export management -v ${artifactVersion} --local -t ${token} |  grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
             scp /tmp/template.json ipfs-kg:/tmp
             scp /var/cache/subutai/management-subutai-template_${artifactVersion}_amd64.tar.gz ipfs-kg:/tmp
-			EOF"""
-
+            """
+            stage("Upload management template to IPFS node")
+            notifyBuildDetails = "\nFailed Step - Upload management template to IPFS node"
             sh """
             ssh ipfs-kg "ipfs add -Q /tmp/management-subutai-template_${artifactVersion}_amd64.tar.gz > /tmp/ipfs.hash"
             """
@@ -145,8 +144,8 @@ node() {
             sed -i 's/"id":""/"id":"${NEW_ID}"/g' /tmp/template.json
             template=`cat /tmp/template.json` && curl -d "token=${token}&template=\$template" https://${cdnHost}/rest/v1/cdn/templates
             """
-        }
-
+    }
+    node("console") {
         stash includes: "management-*.deb", name: 'deb'
 
         if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME == 'dev' || env.BRANCH_NAME == 'sysnet') {
@@ -163,14 +162,15 @@ node() {
             ssh dak@deb.subutai.io sh /var/reprepro/scripts/scan-incoming.sh ${env.BRANCH_NAME} management
             """
         }
-    } catch (e) {
+    }
+} catch (e) {
         currentBuild.result = "FAILED"
         throw e
     } finally {
         // Success or failure, always send notifications
         notifyBuild(currentBuild.result, notifyBuildDetails)
     }
-}
+
 
 def getVersionFromPom(pom) {
     def matcher = readFile(pom) =~ '<version>(.+)</version>'
