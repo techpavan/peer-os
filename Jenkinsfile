@@ -44,7 +44,9 @@ try {
 
         checkout scm
         def artifactVersion = getVersion("management/pom.xml")
-        
+        def version = sh (script: """
+            echo ${artifactVersion} > versionfile
+            """, returnStdout: true)
 
         // build deb
         sh """
@@ -62,6 +64,8 @@ try {
         """        
         sh """
             cp ${debFileName} /tmp
+            echo ${version}
+            cp versionfile /tmp/
         """
         
         stash includes: "management-*.deb", name: 'deb'
@@ -117,6 +121,13 @@ try {
         notifyBuildDetails = "\nFailed Step - Build management template"
                 
         // create management template
+            sh """
+            scp jenkins-master:/tmp/versionfile ~/
+            """
+            def version = sh(script: """
+            cat versionfile
+            """, returnStdout: true)
+            
             sh """
 			set +x
            
