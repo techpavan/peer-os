@@ -57,8 +57,22 @@ try {
         find ${workspace}/management/server/server-karaf/target/ -name *.deb | xargs -I {} cp {} ${workspace}/${debFileName}
         """        
         stash includes: "management-*.deb", name: 'deb'
+        
+        if (env.BRANCH_NAME =='jenkins') {
+            stage("Upload to REPO")
+            notifyBuildDetails = "\nFailed Step - Upload to Repo"
+            deleteDir()
 
-        if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME == 'dev' || env.BRANCH_NAME == 'sysnet'  || env.BRANCH_NAME == 'jenkins') {
+            unstash 'deb'
+
+            //copy deb to repo
+            sh """
+            touch uploading_management
+            scp uploading_management ${debFileName} dak@deb.subutai.io:incoming/sysnet/
+            ssh dak@deb.subutai.io sh /var/reprepro/scripts/scan-incoming.sh sysnet management
+            """
+        }
+        if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME == 'dev' || env.BRANCH_NAME == 'sysnet') {
             stage("Upload to REPO")
             notifyBuildDetails = "\nFailed Step - Upload to Repo"
             deleteDir()
