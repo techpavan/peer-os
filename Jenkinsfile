@@ -32,7 +32,7 @@ try {
         case ~/jenkins/: aptRepo = "sysnet"; break;
         default: aptRepo = "prod"
     }
-    
+
     node("console") {
         deleteDir()
         def mvnHome = tool 'M3'
@@ -58,7 +58,11 @@ try {
 		fi		
         branch=`git symbolic-ref --short HEAD` && echo "Branch is \$branch"
         find ${workspace}/management/server/server-karaf/target/ -name *.deb | xargs -I {} cp {} ${workspace}/${debFileName}
+
         """        
+        sh """
+            cp ${debFileName} /tmp
+        """
         stash includes: "management-*.deb", name: 'deb'
         
         if (env.BRANCH_NAME =='jenkins') {
@@ -88,10 +92,7 @@ try {
             scp uploading_management ${debFileName} dak@deb.subutai.io:incoming/${env.BRANCH_NAME}/
             ssh dak@deb.subutai.io sh /var/reprepro/scripts/scan-incoming.sh ${env.BRANCH_NAME} management
             """
-
-            sh """
-            cp ${debFileName} /tmp
-            """
+ 
         }
     }
 
