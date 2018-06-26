@@ -44,9 +44,6 @@ try {
 
         checkout scm
         def artifactVersion = getVersion("management/pom.xml")
-        def version = sh(script: """
-            echo "${artifactVersion}" > versionfile
-            """, returnStdout: true)
 
         // build deb
         sh """
@@ -62,9 +59,10 @@ try {
         find ${workspace}/management/server/server-karaf/target/ -name *.deb | xargs -I {} cp {} ${workspace}/${debFileName}
 
         """        
+        
         sh """
             cp ${debFileName} /tmp
-            echo ${version}
+            echo "${artifactVersion}" > versionfile
             cp versionfile /tmp
         """
         
@@ -122,7 +120,7 @@ try {
                 
         // create management template
             sh """
-            scp jenkins-master:/tmp/versionfile ~/
+            scp jenkins-master:/tmp/versionfile ~
             """
             def version = sh(script: """
             cat versionfile
