@@ -155,15 +155,15 @@ try {
             sudo subutai attach management "sed -i "s/4/3/g" /etc/logrotate.d/rsyslog"
   			sudo rm /var/lib/lxc/management/rootfs/tmp/${debFileName}
             echo "Using CDN token ${token}"  
-            echo "Template version is ${artifactVersion}"
-			sudo subutai export management -v ${artifactVersion} --local -t ${token} |  grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
+            echo "Template version is ${version}"
+			sudo subutai export management -v ${version} --local -t ${token} |  grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
             scp /tmp/template.json ipfs-kg:/tmp
-            scp /var/cache/subutai/management-subutai-template_${artifactVersion}_amd64.tar.gz ipfs-kg:/tmp
+            scp /var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz ipfs-kg:/tmp
             """
             stage("Upload management template to IPFS node")
             notifyBuildDetails = "\nFailed Step - Upload management template to IPFS node"
             sh """
-            ssh ipfs-kg "ipfs add -Q /tmp/management-subutai-template_${artifactVersion}_amd64.tar.gz > /tmp/ipfs.hash"
+            ssh ipfs-kg "ipfs add -Q /tmp/management-subutai-template_${version}_amd64.tar.gz > /tmp/ipfs.hash"
             """
 
             sh """
