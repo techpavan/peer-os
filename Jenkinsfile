@@ -123,7 +123,7 @@ try {
             scp jenkins-master:/tmp/versionfile ~
             """
             def version = sh(script: """
-            cat versionfile
+            cat ~/versionfile
             """, returnStdout: true)
             
             sh """
