@@ -44,8 +44,8 @@ try {
 
         checkout scm
         def artifactVersion = getVersion("management/pom.xml")
-        def version = sh (script: """
-            echo ${artifactVersion} > versionfile
+        def version = sh(script: """
+            echo "${artifactVersion}" > versionfile
             """, returnStdout: true)
 
         // build deb
@@ -65,7 +65,7 @@ try {
         sh """
             cp ${debFileName} /tmp
             echo ${version}
-            cp versionfile /tmp/
+            cp versionfile /tmp
         """
         
         stash includes: "management-*.deb", name: 'deb'
@@ -130,7 +130,7 @@ try {
             
             sh """
 			set +x
-           
+            echo ${version}           
 			set -e
 		    echo ${token}
             sudo sed 's/URL =.*/URL = ${cdnHost}/gI' -i /etc/subutai/agent.conf
