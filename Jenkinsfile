@@ -125,7 +125,7 @@ try {
             def version = sh(script: """
             cat ~/versionfile
             """, returnStdout: true)
-            
+            version = version.trim()
             sh """
 			set +x
             set -e
