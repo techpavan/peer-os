@@ -111,7 +111,7 @@ try {
             echo ${authId} | gpg1 --clearsign -u ${user}
             """, returnStdout: true)
         sign = sign.trim()
-        def token = sh(script: """
+        String token = sh(script: """
             curl -s --data-urlencode "request=${sign}"  https://${cdnHost}/rest/v1/cdn/token
             """, returnStdout: true)
         token = token.trim()     
@@ -128,8 +128,7 @@ try {
             
             sh """
 			set +x
-            echo ${version}           
-			set -e
+            set -e
 		    sudo sed 's/URL =.*/URL = ${cdnHost}/gI' -i /etc/subutai/agent.conf
             sudo sed 's/SshJumpServer =.*/SshJumpServer = ${jumpServer}/gI' -i /etc/subutai/agent.conf
 			sudo subutai destroy management
