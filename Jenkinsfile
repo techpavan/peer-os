@@ -114,7 +114,7 @@ try {
         String token = sh(script: """
             curl -s --data-urlencode "request=${sign}"  https://${cdnHost}/rest/v1/cdn/token
             """, returnStdout: true)
-        token = token.trim()     
+        //token = token.trim()     
         stage("Build management template")
         notifyBuildDetails = "\nFailed Step - Build management template"
                 
