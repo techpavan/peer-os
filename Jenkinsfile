@@ -163,7 +163,7 @@ try {
             sh """
             set +xe
             scp /tmp/template.json ipfs-kg:/tmp/
-            scp /var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz ipfs-kg:/tmp
+            scp "/var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz" ipfs-kg:/tmp
             """
             stage("Upload management template to IPFS node")
             notifyBuildDetails = "\nFailed Step - Upload management template to IPFS node"
