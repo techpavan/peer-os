@@ -160,13 +160,15 @@ try {
 			sudo subutai export management -v "${version}" --local --token "${token}" | grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
             """
             // tranfering files to ipfs node
+        stage("Upload management template to IPFS node")
+        notifyBuildDetails = "\nFailed Step - Upload management template to IPFS node"
+        
             sh """
             set +xe
             scp /tmp/template.json ipfs-kg:/tmp/
             scp "/var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz" ipfs-kg:/tmp
             """
-            stage("Upload management template to IPFS node")
-            notifyBuildDetails = "\nFailed Step - Upload management template to IPFS node"
+
             sh """
             ssh ipfs-kg "ipfs add -Q /tmp/management-subutai-template_${version}_amd64.tar.gz > /tmp/ipfs.hash"
             """
