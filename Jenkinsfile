@@ -154,7 +154,14 @@ try {
   			sudo rm /var/lib/lxc/management/rootfs/tmp/${debFileName}
             echo "Using CDN token ${token}"  
             echo "Template version is ${version}"
+            """
+            // Exporting template
+            sh """
 			sudo subutai export management -v "${version}" --local --token "${token}" | grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
+            """
+            // tranfering files to ipfs node
+            sh """
+            set +xe
             scp /tmp/template.json ipfs-kg:/tmp/
             scp /var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz ipfs-kg:/tmp
             """
