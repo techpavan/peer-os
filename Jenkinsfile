@@ -114,7 +114,7 @@ try {
         String token = sh(script: """
             curl -s --data-urlencode "request=${sign}"  https://${cdnHost}/rest/v1/cdn/token
             """, returnStdout: true)
-        //token = token.trim()     
+        token = token.trim()     
         stage("Build management template")
         notifyBuildDetails = "\nFailed Step - Build management template"
                 
@@ -154,7 +154,7 @@ try {
   			sudo rm /var/lib/lxc/management/rootfs/tmp/${debFileName}
             echo "Using CDN token ${token}"  
             echo "Template version is ${version}"
-			sudo subutai -d export management -v ${version} --local --token ${token} | grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
+			sudo subutai export management -v "${version}" --local --token "${token}" | grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
             scp /tmp/template.json ipfs-kg:/tmp
             scp /var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz ipfs-kg:/tmp
             """
