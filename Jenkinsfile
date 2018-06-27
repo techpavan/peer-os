@@ -130,8 +130,7 @@ try {
 			set +x
             echo ${version}           
 			set -e
-		    echo ${token}
-            sudo sed 's/URL =.*/URL = ${cdnHost}/gI' -i /etc/subutai/agent.conf
+		    sudo sed 's/URL =.*/URL = ${cdnHost}/gI' -i /etc/subutai/agent.conf
             sudo sed 's/SshJumpServer =.*/SshJumpServer = ${jumpServer}/gI' -i /etc/subutai/agent.conf
 			sudo subutai destroy management
             sudo subutai clone debian-stretch management
@@ -156,7 +155,7 @@ try {
   			sudo rm /var/lib/lxc/management/rootfs/tmp/${debFileName}
             echo "Using CDN token ${token}"  
             echo "Template version is ${version}"
-			sudo subutai -d export management -v ${version} --local -t "${token}" |  grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
+			sudo subutai -d export management -v ${version} --local --token ${token} | grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
             scp /tmp/template.json ipfs-kg:/tmp
             scp /var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz ipfs-kg:/tmp
             """
