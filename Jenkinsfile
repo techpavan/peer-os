@@ -155,7 +155,7 @@ try {
             echo "Using CDN token ${token}"  
             echo "Template version is ${version}"
 			sudo subutai export management -v "${version}" --local --token "${token}" | grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
-            scp /tmp/template.json ipfs-kg:/tmp
+            scp /tmp/template.json ipfs-kg:/tmp/
             scp /var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz ipfs-kg:/tmp
             """
             stage("Upload management template to IPFS node")
