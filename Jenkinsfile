@@ -115,21 +115,22 @@ try {
             curl -s --data-urlencode "request=${sign}"  https://${cdnHost}/rest/v1/cdn/token
             """, returnStdout: true)
         token = token.trim()     
-        sh """
-        scp jenkins-master:/tmp/versionfile ~
-        """
-        def version = sh(script: """
-            cat ~/versionfile
-        """, returnStdout: true)
-        version = version.trim()
+       
         
         stage("Build management template")
         notifyBuildDetails = "\nFailed Step - Build management template"
                 
         // create management template
-
             sh """
-			set +x
+            scp jenkins-master:/tmp/versionfile ~
+            """
+            def version = sh(script: """
+                cat ~/versionfile
+            """, returnStdout: true)
+            version = version.trim()
+        
+            sh """
+		   	set +x
             set -e
 		    sudo sed 's/URL =.*/URL = ${cdnHost}/gI' -i /etc/subutai/agent.conf
             sudo sed 's/SshJumpServer =.*/SshJumpServer = ${jumpServer}/gI' -i /etc/subutai/agent.conf
@@ -168,7 +169,7 @@ try {
             // Pinning template
             sh """
             cd /var/cache/subutai/
-            ipfs add -Q management-subutai-template_${version}_amd64.tar.gz > /tmp/ipfs.hash
+            IPFS_PATH=/var/lib/ipfs/node ipfs add -Q management-subutai-template_${version}_amd64.tar.gz > /tmp/ipfs.hash
             """
 
             String NEW_ID = sh(script: """
