@@ -115,17 +115,19 @@ try {
             curl -s --data-urlencode "request=${sign}"  https://${cdnHost}/rest/v1/cdn/token
             """, returnStdout: true)
         token = token.trim()     
+        sh """
+        scp jenkins-master:/tmp/versionfile ~
+        """
+        def version = sh(script: """
+            cat ~/versionfile
+        """, returnStdout: true)
+        version = version.trim()
+        
         stage("Build management template")
         notifyBuildDetails = "\nFailed Step - Build management template"
                 
         // create management template
-            sh """
-            scp jenkins-master:/tmp/versionfile ~
-            """
-            def version = sh(script: """
-            cat ~/versionfile
-            """, returnStdout: true)
-            version = version.trim()
+
             sh """
 			set +x
             set -e
@@ -159,23 +161,14 @@ try {
             sh """
 			sudo subutai export management -v "${version}" --local --token "${token}" | grep -Po "{.*}" | tr -d '\\\\' > /tmp/template.json
             """
-            // tranfering files to ipfs node
+                        
         stage("Upload management template to IPFS node")
         notifyBuildDetails = "\nFailed Step - Upload management template to IPFS node"
         
+            // Pinning template
             sh """
-            set +xe
-            scp /tmp/template.json ipfs-kg:/tmp/
-            scp "/var/cache/subutai/management-subutai-template_${version}_amd64.tar.gz" ipfs-kg:/tmp
-            """
-
-            sh """
-            ssh ipfs-kg "ipfs add -Q /tmp/management-subutai-template_${version}_amd64.tar.gz > /tmp/ipfs.hash"
-            """
-
-            sh """
-            scp ipfs-kg:/tmp/ipfs.hash /tmp/
-            scp ipfs-kg:/tmp/template.json /tmp/
+            cd /var/cache/subutai/
+            ipfs add -Q management-subutai-template_${version}_amd64.tar.gz > /tmp/ipfs.hash
             """
 
             String NEW_ID = sh(script: """
@@ -201,6 +194,13 @@ try {
             echo "NEW ID: ${NEW_ID}"
             sed -i 's/"id":""/"id":"${NEW_ID}"/g' /tmp/template.json
             template=`cat /tmp/template.json` && curl -d "token=${token}&template=\$template" https://${cdnHost}/rest/v1/cdn/templates
+            """
+
+            // Pinning templates to EU1 and US1
+
+            sh """
+            ssh ipfs-eu1 "ipfs pin add ${NEW_ID}"
+            ssh ipfs-us1 "ipfs pin add ${NEW_ID}"
             """
     }
 } catch (e) {
