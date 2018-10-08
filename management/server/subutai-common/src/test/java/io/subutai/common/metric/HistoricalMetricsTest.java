@@ -2,6 +2,7 @@ package io.subutai.common.metric;
 
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Map;
@@ -13,10 +14,10 @@ import org.apache.commons.io.IOUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import io.subutai.hub.share.dto.metrics.CpuDto;
-import io.subutai.hub.share.dto.metrics.DiskDto;
-import io.subutai.hub.share.dto.metrics.HostMetricsDto;
-import io.subutai.hub.share.dto.metrics.MemoryDto;
+import io.subutai.bazaar.share.dto.metrics.CpuDto;
+import io.subutai.bazaar.share.dto.metrics.DiskDto;
+import io.subutai.bazaar.share.dto.metrics.HostMetricsDto;
+import io.subutai.bazaar.share.dto.metrics.MemoryDto;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -34,7 +35,7 @@ public class HistoricalMetricsTest
         final ObjectMapper objectMapper = new ObjectMapper();
 
         final String rhJson = IOUtils.toString( HistoricalMetricsTest.class.getClassLoader().getResourceAsStream(
-                "metrics/resource_host_metrics.json" ), "UTF-8" );
+                "metrics/resource_host_metrics.json" ), StandardCharsets.UTF_8 );
         rhMetrics = objectMapper.readValue( rhJson, HistoricalMetrics.class );
         Calendar cal = Calendar.getInstance();
         Date endTime = cal.getTime();
@@ -43,7 +44,7 @@ public class HistoricalMetricsTest
         rhMetrics.setStartTime( startTime );
         rhMetrics.setEndTime( endTime );
         final String chJson = IOUtils.toString( HistoricalMetricsTest.class.getClassLoader().getResourceAsStream(
-                "metrics/container_host_metrics.json" ), "UTF-8" );
+                "metrics/container_host_metrics.json" ), StandardCharsets.UTF_8 );
         chMetrics = objectMapper.readValue( chJson, HistoricalMetrics.class );
     }
 

@@ -12,7 +12,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -34,9 +33,9 @@ import io.subutai.core.security.api.SecurityManager;
 import io.subutai.core.systemmanager.api.SystemManager;
 import io.subutai.core.template.api.TemplateManager;
 import io.subutai.core.tracker.api.Tracker;
-import io.subutai.hub.share.common.HubAdapter;
-import io.subutai.hub.share.quota.ContainerQuota;
-import io.subutai.hub.share.quota.ContainerSize;
+import io.subutai.bazaar.share.common.BazaaarAdapter;
+import io.subutai.bazaar.share.quota.ContainerQuota;
+import io.subutai.bazaar.share.quota.ContainerSize;
 
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertTrue;
@@ -68,7 +67,7 @@ public class EnvironmentManagerSecureProxyTest
     @Mock
     IdentityManager identityManager;
     @Mock
-    HubAdapter hubAdapter;
+    BazaaarAdapter bazaaarAdapter;
     @Mock
     EnvironmentService environmentService;
     @Mock
@@ -90,18 +89,19 @@ public class EnvironmentManagerSecureProxyTest
     {
         public EnvironmentManagerSecureProxySUT( final PeerManager peerManager, final SecurityManager securityManager,
                                                  final IdentityManager identityManager, final Tracker tracker,
-                                                 final RelationManager relationManager, final HubAdapter hubAdapter,
+                                                 final RelationManager relationManager, final BazaaarAdapter bazaaarAdapter,
                                                  final EnvironmentService environmentService,
                                                  final SystemManager systemManager )
         {
-            super( templateManager, peerManager, securityManager, identityManager, tracker, relationManager, hubAdapter,
+            super( templateManager, peerManager, securityManager, identityManager, tracker, relationManager,
+                    bazaaarAdapter,
                     environmentService, systemManager );
         }
 
 
         protected EnvironmentManagerImpl getEnvironmentManager( TemplateManager templateManager,
                                                                 PeerManager peerManager,
-                                                                SecurityManager securityManager, HubAdapter hubAdapter,
+                                                                SecurityManager securityManager, BazaaarAdapter bazaaarAdapter,
                                                                 EnvironmentService environmentService,
                                                                 SystemManager systemManager )
         {
@@ -118,7 +118,7 @@ public class EnvironmentManagerSecureProxyTest
     public void setUp() throws Exception
     {
         proxy = spy( new EnvironmentManagerSecureProxySUT( peerManager, securityManager, identityManager, tracker,
-                relationManager, hubAdapter, environmentService, systemManager ) );
+                relationManager, bazaaarAdapter, environmentService, systemManager ) );
 
         doNothing().when( proxy ).check( any( RelationLink.class ), any( RelationLink.class ), anyMap() );
         doNothing().when( proxy ).check( any( RelationLink.class ), any( Collection.class ), anyMap() );
@@ -245,11 +245,11 @@ public class EnvironmentManagerSecureProxyTest
         Map<String, ContainerQuota> changedContainers = Maps.newHashMap();
         changedContainers.put( TestHelper.CONTAINER_ID, new ContainerQuota( ContainerSize.LARGE ) );
 
-        proxy.modifyEnvironment( TestHelper.ENV_ID, topology, Lists.newArrayList( TestHelper.CONTAINER_ID ),
+        proxy.modifyEnvironment( TestHelper.ENV_ID, topology, Sets.newHashSet( TestHelper.CONTAINER_ID ),
                 changedContainers, true );
 
         verify( environmentManager )
-                .modifyEnvironment( TestHelper.ENV_ID, topology, Lists.newArrayList( TestHelper.CONTAINER_ID ),
+                .modifyEnvironment( TestHelper.ENV_ID, topology, Sets.newHashSet( TestHelper.CONTAINER_ID ),
                         changedContainers, true );
     }
 

@@ -21,7 +21,7 @@ function AdvancedEnvironmentCtrl($scope, $rootScope, environmentService, tracker
 
     var vm = this;
 
-	checkCDNToken(templateSrv, $rootScope)
+//	checkCDNToken(templateSrv, $rootScope)
 
     vm.buildEnvironment = buildEnvironment;
     vm.buildEditedEnvironment = buildEditedEnvironment;
@@ -98,7 +98,7 @@ function AdvancedEnvironmentCtrl($scope, $rootScope, environmentService, tracker
     }
 
     loadTemplates();
-    loadOwnTemplates();
+//    loadOwnTemplates();
 
     $rootScope.$on('cdnTokenSet', function (event, data) {
         loadOwnTemplates();
@@ -332,6 +332,7 @@ function AdvancedEnvironmentCtrl($scope, $rootScope, environmentService, tracker
 
                 $rootScope.notificationsUpdate = 'startEnvironmentAdvancedBuild';
             }).error(function (error) {
+            ngDialog.closeAll();
             if (error && error.ERROR === undefined) {
                 VARS_MODAL_ERROR(SweetAlert, 'Error: ' + error);
             } else {
@@ -378,6 +379,7 @@ function AdvancedEnvironmentCtrl($scope, $rootScope, environmentService, tracker
 
                 $rootScope.notificationsUpdate = 'modifyEnvironmentAdv';
             }).error(function (error) {
+            ngDialog.closeAll();
             if (error && error.ERROR === undefined) {
                 VARS_MODAL_ERROR(SweetAlert, 'Error: ' + error);
             } else {

@@ -6,13 +6,15 @@ import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import io.subutai.hub.share.quota.ContainerQuota;
+import io.subutai.bazaar.share.quota.ContainerQuota;
 
 
 public class Nodes
 {
     @JsonProperty( value = "nodes" )
-    private Set<Node> nodes;
+    private Set<Node> newNodes;
+    @JsonProperty( value = "removedContainers" )
+    private Set<String> removedContainers;
 
     @JsonProperty( value = "quotas" )
     private Map<String, ContainerQuota> quotas;
@@ -23,16 +25,18 @@ public class Nodes
     }
 
 
-    public Nodes( final Set<Node> nodes )
+    public Nodes( final Set<Node> newNodes )
     {
-        this.nodes = nodes;
+        this.newNodes = newNodes;
     }
 
 
-    public Nodes( final Set<Node> nodes, final Map<String, ContainerQuota> quotas )
+    public Nodes( final Set<Node> newNodes, final Set<String> removedContainers,
+                  final Map<String, ContainerQuota> quotas )
     {
-        this.nodes = nodes;
+        this.newNodes = newNodes;
         this.quotas = quotas;
+        this.removedContainers = removedContainers;
     }
 
 
@@ -42,8 +46,14 @@ public class Nodes
     }
 
 
-    public Set<Node> getNodes()
+    public Set<Node> getNewNodes()
     {
-        return nodes;
+        return newNodes;
+    }
+
+
+    public Set<String> getRemovedContainers()
+    {
+        return removedContainers;
     }
 }

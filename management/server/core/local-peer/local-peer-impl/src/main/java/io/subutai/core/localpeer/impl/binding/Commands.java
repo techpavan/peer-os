@@ -5,10 +5,10 @@ import io.subutai.common.command.RequestBuilder;
 import io.subutai.common.settings.Common;
 import io.subutai.common.task.Command;
 import io.subutai.common.task.CommandBatch;
-import io.subutai.hub.share.quota.ContainerQuota;
-import io.subutai.hub.share.quota.Quota;
-import io.subutai.hub.share.resource.ByteUnit;
-import io.subutai.hub.share.resource.ContainerResourceType;
+import io.subutai.bazaar.share.quota.ContainerQuota;
+import io.subutai.bazaar.share.quota.Quota;
+import io.subutai.bazaar.share.resource.ByteUnit;
+import io.subutai.bazaar.share.resource.ContainerResourceType;
 
 
 /**
@@ -35,8 +35,11 @@ public abstract class Commands
         {
 
             Command quotaCommand = new Command( "quota" );
-            quotaCommand.addArgument( containerName );
+            quotaCommand.addArgument( "get" );
+            quotaCommand.addArgument( "-r" );
             quotaCommand.addArgument( resourceType.getKey() );
+            quotaCommand.addArgument( "-c" );
+            quotaCommand.addArgument( containerName );
             result.addCommand( quotaCommand );
         }
 
@@ -53,9 +56,11 @@ public abstract class Commands
         {
 
             Command quotaCommand = new Command( "quota" );
-            quotaCommand.addArgument( containerName );
+            quotaCommand.addArgument( "set" );
+            quotaCommand.addArgument( "-r" );
             quotaCommand.addArgument( r.getResource().getContainerResourceType().getKey() );
-            quotaCommand.addArgument( "-s" );
+            quotaCommand.addArgument( "-c" );
+            quotaCommand.addArgument( containerName );
 
             if ( r.getResource().getContainerResourceType() == ContainerResourceType.DISK )
             {
@@ -65,14 +70,6 @@ public abstract class Commands
             else
             {
                 quotaCommand.addArgument( r.getResource().getWriteValue() );
-            }
-
-            if ( r.getThreshold() != null && r.getThreshold() != 0 && !(
-                    r.getResource().getContainerResourceType() == ContainerResourceType.CPUSET
-                            || r.getResource().getContainerResourceType() == ContainerResourceType.DISK ) )
-            {
-                quotaCommand.addArgument( "-t" );
-                quotaCommand.addArgument( r.getThreshold().toString() );
             }
 
             result.addCommand( quotaCommand );

@@ -4,6 +4,7 @@ package io.subutai.common.peer;
 import java.util.List;
 import java.util.Set;
 
+import io.subutai.common.environment.Nodes;
 import io.subutai.common.environment.PeerTemplatesUploadProgress;
 import io.subutai.common.host.ContainerHostInfo;
 import io.subutai.common.host.ResourceHostInfo;
@@ -13,9 +14,9 @@ import io.subutai.common.network.SshTunnel;
 import io.subutai.common.protocol.P2pIps;
 import io.subutai.common.protocol.Template;
 import io.subutai.common.util.HostUtil;
-import io.subutai.hub.share.quota.Quota;
-import io.subutai.hub.share.resource.ContainerResourceType;
-import io.subutai.hub.share.resource.PeerResources;
+import io.subutai.bazaar.share.quota.Quota;
+import io.subutai.bazaar.share.resource.ContainerResourceType;
+import io.subutai.bazaar.share.resource.PeerResources;
 
 
 /**
@@ -227,7 +228,9 @@ public interface LocalPeer extends Peer
 
     PeerTemplatesUploadProgress getTemplateUploadProgress( final String templateName ) throws PeerException;
 
-    void exportTemplate( ContainerId containerId, String templateName, String version,
-                                     boolean isPrivateTemplate, String token ) throws PeerException;
+    void exportTemplate( ContainerId containerId, String templateName, String version, boolean isPrivateTemplate,
+                         String token ) throws PeerException;
+
+    FitCheckResult checkResources( Nodes nodes ) throws PeerException;
 }
 

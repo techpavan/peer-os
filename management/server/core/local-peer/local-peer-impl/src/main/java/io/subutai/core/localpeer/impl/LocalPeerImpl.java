@@ -43,6 +43,25 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import io.subutai.bazaar.share.dto.metrics.HostMetricsDto;
+import io.subutai.bazaar.share.parser.CommonResourceValueParser;
+import io.subutai.bazaar.share.quota.ContainerCpuResource;
+import io.subutai.bazaar.share.quota.ContainerDiskResource;
+import io.subutai.bazaar.share.quota.ContainerQuota;
+import io.subutai.bazaar.share.quota.ContainerRamResource;
+import io.subutai.bazaar.share.quota.ContainerResource;
+import io.subutai.bazaar.share.quota.ContainerResourceFactory;
+import io.subutai.bazaar.share.quota.ContainerSize;
+import io.subutai.bazaar.share.quota.Quota;
+import io.subutai.bazaar.share.quota.QuotaException;
+import io.subutai.bazaar.share.resource.ByteUnit;
+import io.subutai.bazaar.share.resource.ContainerResourceType;
+import io.subutai.bazaar.share.resource.CpuResource;
+import io.subutai.bazaar.share.resource.DiskResource;
+import io.subutai.bazaar.share.resource.HostResources;
+import io.subutai.bazaar.share.resource.PeerResources;
+import io.subutai.bazaar.share.resource.RamResource;
+import io.subutai.bazaar.share.resource.ResourceValue;
 import io.subutai.common.command.CommandCallback;
 import io.subutai.common.command.CommandException;
 import io.subutai.common.command.CommandResult;
@@ -88,6 +107,7 @@ import io.subutai.common.peer.ContainerHost;
 import io.subutai.common.peer.ContainerId;
 import io.subutai.common.peer.ContainerInfo;
 import io.subutai.common.peer.EnvironmentId;
+import io.subutai.common.peer.FitCheckResult;
 import io.subutai.common.peer.Host;
 import io.subutai.common.peer.HostNotFoundException;
 import io.subutai.common.peer.LocalPeer;
@@ -100,6 +120,7 @@ import io.subutai.common.peer.PeerPolicy;
 import io.subutai.common.peer.RegistrationStatus;
 import io.subutai.common.peer.RequestListener;
 import io.subutai.common.peer.ResourceHost;
+import io.subutai.common.peer.ResourceHostCapacity;
 import io.subutai.common.peer.ResourceHostException;
 import io.subutai.common.protocol.CustomProxyConfig;
 import io.subutai.common.protocol.Disposable;
@@ -169,25 +190,6 @@ import io.subutai.core.security.api.SecurityManager;
 import io.subutai.core.security.api.crypto.EncryptionTool;
 import io.subutai.core.security.api.crypto.KeyManager;
 import io.subutai.core.template.api.TemplateManager;
-import io.subutai.hub.share.dto.metrics.HostMetricsDto;
-import io.subutai.hub.share.parser.CommonResourceValueParser;
-import io.subutai.hub.share.quota.ContainerCpuResource;
-import io.subutai.hub.share.quota.ContainerDiskResource;
-import io.subutai.hub.share.quota.ContainerQuota;
-import io.subutai.hub.share.quota.ContainerRamResource;
-import io.subutai.hub.share.quota.ContainerResource;
-import io.subutai.hub.share.quota.ContainerResourceFactory;
-import io.subutai.hub.share.quota.ContainerSize;
-import io.subutai.hub.share.quota.Quota;
-import io.subutai.hub.share.quota.QuotaException;
-import io.subutai.hub.share.resource.ByteUnit;
-import io.subutai.hub.share.resource.ContainerResourceType;
-import io.subutai.hub.share.resource.CpuResource;
-import io.subutai.hub.share.resource.DiskResource;
-import io.subutai.hub.share.resource.HostResources;
-import io.subutai.hub.share.resource.PeerResources;
-import io.subutai.hub.share.resource.RamResource;
-import io.subutai.hub.share.resource.ResourceValue;
 
 
 /**
@@ -202,7 +204,6 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
 
     private static final Logger LOG = LoggerFactory.getLogger( LocalPeerImpl.class );
     private static final BigDecimal ONE_HUNDRED = new BigDecimal( "100.00" );
-    private static final double ACCOMMODATION_OVERHEAD_FACTOR = 1.01;
 
     private transient DaoManager daoManager;
     private transient TemplateManager templateManager;
@@ -811,7 +812,6 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
 
             for ( final String templateId : request.getTemplates().get( resourceHostId ) )
             {
-                //                Template template = templateManager.getTemplate( templateId, request.getCdnToken() );
                 Template template = templateManager.getTemplate( templateId );
 
                 if ( template == null )
@@ -876,47 +876,55 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
     }
 
 
-    //TODO add dateCreated to ContainerHostEntity
-    //when quota change is requested, check for the time passed since the dateCreated
-    //or since the last quota change
-    //must be at least 30 seconds otherwise throw an exception
-    @RolesAllowed( "Environment-Management|Read" )
     @Override
-    public boolean canAccommodate( final Nodes nodes ) throws PeerException
+    public synchronized FitCheckResult checkResources( final Nodes nodes ) throws PeerException
     {
         Preconditions.checkArgument(
                 nodes != null && ( !CollectionUtil.isMapEmpty( nodes.getQuotas() ) || !CollectionUtil
-                        .isCollectionEmpty( nodes.getNodes() ) ), "Invalid nodes" );
+                        .isCollectionEmpty( nodes.getNewNodes() ) ), "Invalid nodes" );
 
         Map<ResourceHost, ResourceHostCapacity> requestedResources = Maps.newHashMap();
 
         for ( ContainerHostInfo containerHostInfo : hostRegistry.getContainerHostsInfo() )
         {
-            //use new quota instead of current if present
-            ContainerQuota newQuota = null;
-            if ( nodes.getQuotas() != null )
+            double requestedRam = 0, requestedCpu = 0, requestedDisk = 0;
+
+            //exclude container from calculations if it is included into removed containers
+            if ( nodes.getRemovedContainers() != null && nodes.getRemovedContainers()
+                                                              .contains( containerHostInfo.getId() ) )
             {
-                newQuota = nodes.getQuotas().get( containerHostInfo.getId() );
+                LOG.debug( "Skipping removed container {}", containerHostInfo.getContainerName() );
             }
+            else
+            {
+                //use container quotas as amount of used resources in calculations
 
-            //use current quota as requested amount unless the container has a change of quota
-            //note: we use 0 for containers that have unset quota since we don't know what the effective limit is
-            double requestedRam = newQuota != null ? newQuota.getContainerSize().getRamQuota() :
-                                  containerHostInfo.getRawQuota() == null
-                                          || containerHostInfo.getRawQuota().getRam() == null ? 0 :
-                                  UnitUtil.convert( containerHostInfo.getRawQuota().getRam(), UnitUtil.Unit.MB,
-                                          UnitUtil.Unit.B );
+                //use new quota instead of current if present
+                ContainerQuota newQuota = null;
+                if ( nodes.getQuotas() != null )
+                {
+                    newQuota = nodes.getQuotas().get( containerHostInfo.getId() );
+                }
 
-            double requestedCpu = newQuota != null ? newQuota.getContainerSize().getCpuQuota() :
-                                  containerHostInfo.getRawQuota() == null
-                                          || containerHostInfo.getRawQuota().getCpu() == null ? 0 :
-                                  containerHostInfo.getRawQuota().getCpu();
+                //use current quota as requested amount unless the container has a change of quota
+                //note: we use 0 for containers that have unset quota since we don't know what the effective limit is
+                requestedRam = newQuota != null ? newQuota.getContainerSize().getRamQuota() :
+                               containerHostInfo.getRawQuota() == null
+                                       || containerHostInfo.getRawQuota().getRam() == null ? 0 :
+                               UnitUtil.convert( containerHostInfo.getRawQuota().getRam(), UnitUtil.Unit.MB,
+                                       UnitUtil.Unit.B );
 
-            double requestedDisk = newQuota != null ? newQuota.getContainerSize().getDiskQuota() :
-                                   containerHostInfo.getRawQuota() == null
-                                           || containerHostInfo.getRawQuota().getDisk() == null ? 0 :
-                                   UnitUtil.convert( containerHostInfo.getRawQuota().getDisk(), UnitUtil.Unit.GB,
-                                           UnitUtil.Unit.B );
+                requestedCpu = newQuota != null ? newQuota.getContainerSize().getCpuQuota() :
+                               containerHostInfo.getRawQuota() == null
+                                       || containerHostInfo.getRawQuota().getCpu() == null ? 0 :
+                               containerHostInfo.getRawQuota().getCpu();
+
+                requestedDisk = newQuota != null ? newQuota.getContainerSize().getDiskQuota() :
+                                containerHostInfo.getRawQuota() == null
+                                        || containerHostInfo.getRawQuota().getDisk() == null ? 0 :
+                                UnitUtil.convert( containerHostInfo.getRawQuota().getDisk(), UnitUtil.Unit.GB,
+                                        UnitUtil.Unit.B );
+            }
 
             //figure out current container resource consumption based on historical metrics
             Calendar cal = Calendar.getInstance();
@@ -989,9 +997,9 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         }
 
         //new nodes
-        if ( nodes.getNodes() != null )
+        if ( nodes.getNewNodes() != null )
         {
-            for ( Node node : nodes.getNodes() )
+            for ( Node node : nodes.getNewNodes() )
             {
                 double requestedRam = node.getQuota().getContainerSize().getRamQuota();
                 double requestedDisk = node.getQuota().getContainerSize().getDiskQuota();
@@ -1031,47 +1039,22 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         }
 
 
-        boolean canAccommodate = true;
+        return new FitCheckResult( availableResources, requestedResources );
+    }
 
-        for ( Map.Entry<ResourceHost, ResourceHostCapacity> resourceEntry : requestedResources.entrySet() )
+
+    @RolesAllowed( "Environment-Management|Read" )
+    @Override
+    public boolean canAccommodate( final Nodes nodes ) throws PeerException
+    {
+        if ( !Common.CHECK_RH_LIMITS )
         {
-            ResourceHost resourceHost = resourceEntry.getKey();
-            ResourceHostCapacity requestedCapacity = resourceEntry.getValue();
-
-            ResourceHostCapacity availableCapacity = availableResources.get( resourceHost );
-
-            if ( requestedCapacity.getRam() * ACCOMMODATION_OVERHEAD_FACTOR > availableCapacity.getRam() )
-            {
-                LOG.warn( "Requested RAM volume {}MB can not be accommodated on RH {}: available RAM volume is {}MB",
-                        UnitUtil.convert( requestedCapacity.getRam(), UnitUtil.Unit.B, UnitUtil.Unit.MB ),
-                        resourceHost.getHostname(),
-                        UnitUtil.convert( availableCapacity.getRam(), UnitUtil.Unit.B, UnitUtil.Unit.MB ) );
-
-                canAccommodate = false;
-            }
-
-            if ( requestedCapacity.getDisk() * ACCOMMODATION_OVERHEAD_FACTOR > availableCapacity.getDisk() )
-            {
-                LOG.warn( "Requested DISK volume {}GB can not be accommodated on RH {}: available DISK volume is "
-                                + "{}GB", UnitUtil.convert( requestedCapacity.getDisk(), UnitUtil.Unit.B, UnitUtil
-                                .Unit.GB ),
-                        resourceHost.getHostname(),
-                        UnitUtil.convert( availableCapacity.getDisk(), UnitUtil.Unit.B, UnitUtil.Unit.GB ) );
-
-                canAccommodate = false;
-            }
-
-            if ( requestedCapacity.getCpu() * ACCOMMODATION_OVERHEAD_FACTOR > availableCapacity.getCpu() )
-            {
-                LOG.warn( "Requested CPU {} can not be accommodated on RH {}: available CPU is {}",
-                        resourceHost.getHostname(), requestedCapacity.getCpu(), availableCapacity.getCpu() );
-
-                canAccommodate = false;
-            }
+            return true;
         }
 
+        FitCheckResult fitCheckResult = checkResources( nodes );
 
-        return canAccommodate;
+        return fitCheckResult.canFit();
     }
 
 
@@ -1441,7 +1424,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         {
             String errMsg = String.format( "Could not start container %s: %s", containerHost.getContainerName(),
                     e.getMessage() );
-            LOG.error( errMsg );
+            LOG.error( errMsg, e );
             throw new PeerException( errMsg, e );
         }
     }
@@ -1463,7 +1446,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         {
             String errMsg = String.format( "Could not stop container %s: %s", containerHost.getContainerName(),
                     e.getMessage() );
-            LOG.error( errMsg );
+            LOG.error( errMsg, e );
             throw new PeerException( errMsg, e );
         }
     }
@@ -1521,8 +1504,18 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
 
             if ( hostInfo.getId().equals( hostId.getId() ) )
             {
-                return hostInfo instanceof ResourceHostInfo || ContainerHostState.RUNNING
-                        .equals( ( ( ContainerHostInfo ) hostInfo ).getState() );
+                if ( hostInfo instanceof ResourceHostInfo )
+                {
+                    return hostRegistry.pingHost( ( ( ResourceHostInfo ) hostInfo ).getAddress() );
+                }
+                else
+                {
+                    ResourceHostInfo resourceHostInfo =
+                            hostRegistry.getResourceHostByContainerHost( ( ContainerHostInfo ) hostInfo );
+
+                    return hostRegistry.pingHost( resourceHostInfo.getAddress() ) && ContainerHostState.RUNNING
+                            .equals( ( ( ContainerHostInfo ) hostInfo ).getState() );
+                }
             }
         }
         catch ( HostDisconnectedException ignore )
@@ -1698,7 +1691,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                 }
                 catch ( Exception e )
                 {
-                    LOG.error( e.getMessage() );
+                    LOG.error( e.getMessage(), e );
                     throw new PeerException( e );
                 }
             }
@@ -1775,7 +1768,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                 }
                 catch ( Exception e )
                 {
-                    LOG.error( "Error exchanging keys with MH" );
+                    LOG.error( "Error exchanging keys with MH", e );
                 }
 
                 //setup security
@@ -1840,7 +1833,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                 String errMsg =
                         String.format( "Error obtaining domain by vlan %d: %s", reservedNetworkResource.getVlan(),
                                 e.getMessage() );
-                LOG.error( errMsg );
+                LOG.error( errMsg, e );
                 throw new PeerException( errMsg, e );
             }
         }
@@ -1868,7 +1861,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                 String errMsg =
                         String.format( "Error removing domain by vlan %d: %s", reservedNetworkResource.getVlan(),
                                 e.getMessage() );
-                LOG.error( errMsg );
+                LOG.error( errMsg, e );
                 throw new PeerException( errMsg, e );
             }
         }
@@ -1901,7 +1894,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
             {
                 String errMsg = String.format( "Error setting domain by vlan %d: %s", reservedNetworkResource.getVlan(),
                         e.getMessage() );
-                LOG.error( errMsg );
+                LOG.error( errMsg, e );
                 throw new PeerException( errMsg, e );
             }
         }
@@ -1929,7 +1922,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
             {
                 String errMsg = String.format( "Error checking domain by ip %s and vlan %d: %s", hostIp,
                         reservedNetworkResource.getVlan(), e.getMessage() );
-                LOG.error( errMsg );
+                LOG.error( errMsg, e );
                 throw new PeerException( errMsg, e );
             }
         }
@@ -1958,7 +1951,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
             {
                 String errMsg = String.format( "Error adding ip %s to domain by vlan %d: %s", hostIp,
                         reservedNetworkResource.getVlan(), e.getMessage() );
-                LOG.error( errMsg );
+                LOG.error( errMsg, e );
                 throw new PeerException( errMsg, e );
             }
         }
@@ -1987,7 +1980,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
             {
                 String errMsg = String.format( "Error removing ip %s from domain by vlan %d: %s", hostIp,
                         reservedNetworkResource.getVlan(), e.getMessage() );
-                LOG.error( errMsg );
+                LOG.error( errMsg, e );
                 throw new PeerException( errMsg, e );
             }
         }
@@ -2017,7 +2010,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         {
             String errMsg =
                     String.format( "Error setting up ssh tunnel for container ip %s: %s", containerIp, e.getMessage() );
-            LOG.error( errMsg );
+            LOG.error( errMsg, e );
             throw new PeerException( errMsg, e );
         }
     }
@@ -2108,7 +2101,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         catch ( Exception e )
         {
             String errMsg = String.format( "Error creating PEK: %s", e.getMessage() );
-            LOG.error( errMsg );
+            LOG.error( errMsg, e );
             throw new PeerException( errMsg, e );
         }
     }
@@ -2410,7 +2403,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         catch ( Exception e )
         {
             String errMsg = String.format( "Error reserving network resources: %s", e.getMessage() );
-            LOG.error( errMsg );
+            LOG.error( errMsg, e );
             throw new PeerException( errMsg, e );
         }
     }
@@ -2431,7 +2424,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         catch ( Exception e )
         {
             String errMsg = String.format( "Error getting reserved network resources: %s", e.getMessage() );
-            LOG.error( errMsg );
+            LOG.error( errMsg, e );
             throw new PeerException( errMsg, e );
         }
 
@@ -2999,17 +2992,23 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
 
             io.subutai.common.host.Quota quota = containerHostInfo.getRawQuota();
 
+            if ( quota == null )
+            {
+                return new io.subutai.common.host.Quota( 0D, 0D, 0D );
+            }
+
             //temp workaround for btrfs quota issue https://github.com/subutai-io/agent/wiki/Switch-to-Soft-Quota
             return new io.subutai.common.host.Quota( quota.getCpu(), quota.getRam(), quota.getDisk() / 2 );
         }
         catch ( Exception e )
         {
-            LOG.error( e.getMessage() );
+            LOG.error( e.getMessage(), e );
             throw new PeerException( String.format( "Error getting container quota: %s", e.getMessage() ), e );
         }
     }
 
 
+    //TODO review this method
     @Override
     public ContainerQuota getQuota( final ContainerId containerId ) throws PeerException
     {
@@ -3048,6 +3047,8 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
 
                     containerQuota.add( new Quota( containerResource, quotaOutput.getThreshold() ) );
                 }
+
+                //todo here adjust disk quota by dividing by 2
             }
         }
         catch ( Exception e )
@@ -3128,7 +3129,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         }
         catch ( Exception e )
         {
-            LOG.error( e.getMessage() );
+            LOG.error( e.getMessage(), e );
             throw new PeerException(
                     String.format( "Could not set container quota for %s: %s", containerId.getId(), e.getMessage() ) );
         }
@@ -3159,7 +3160,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         }
         catch ( HostNotFoundException e )
         {
-            LOG.error( e.getMessage() );
+            LOG.error( e.getMessage(), e );
             throw new PeerException( e.getMessage(), e );
         }
     }
@@ -3180,7 +3181,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
         }
         catch ( HostNotFoundException e )
         {
-            LOG.error( e.getMessage() );
+            LOG.error( e.getMessage(), e );
             throw new PeerException( e.getMessage(), e );
         }
     }
@@ -3786,7 +3787,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
             }
             catch ( Exception e )
             {
-                LOG.error( e.getMessage() );
+                LOG.error( e.getMessage(), e );
             }
 
             //destroy container without environments
@@ -3798,7 +3799,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                 }
                 catch ( PeerException e )
                 {
-                    LOG.error( e.getMessage() );
+                    LOG.error( e.getMessage(), e );
                 }
             }
 
@@ -3877,14 +3878,14 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                         }
                         catch ( CommandException e1 )
                         {
-                            LOG.error( e1.getMessage() );
+                            LOG.error( e1.getMessage(), e1 );
                         }
                     }
                 }
             }
             catch ( ResourceHostException e )
             {
-                LOG.error( e.getMessage() );
+                LOG.error( e.getMessage(), e );
             }
 
 
@@ -3908,7 +3909,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
             }
             catch ( Exception e )
             {
-                LOG.error( e.getMessage() );
+                LOG.error( e.getMessage(), e );
             }
 
             for ( Integer vlan : lostEnvironmentsVlans )
@@ -3921,7 +3922,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                 }
                 catch ( ResourceHostException e )
                 {
-                    LOG.error( e.getMessage() );
+                    LOG.error( e.getMessage(), e );
                 }
             }
 
@@ -3957,7 +3958,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
             }
             catch ( Exception e )
             {
-                LOG.error( e.getMessage() );
+                LOG.error( e.getMessage(), e );
             }
 
             //b) ignore manually created containers
@@ -3977,7 +3978,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                 catch ( Exception e )
                 {
                     iterator.remove();
-                    LOG.error( e.getMessage() );
+                    LOG.error( e.getMessage(), e );
                 }
             }
 
@@ -4006,7 +4007,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                 }
                 catch ( CommandException e )
                 {
-                    LOG.error( e.getMessage() );
+                    LOG.error( e.getMessage(), e );
                 }
             }
 
@@ -4045,7 +4046,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
             }
             catch ( PeerException e )
             {
-                LOG.error( e.getMessage() );
+                LOG.error( e.getMessage(), e );
             }
 
 
@@ -4069,7 +4070,7 @@ public class LocalPeerImpl extends HostListener implements LocalPeer, Disposable
                     }
                     catch ( ResourceHostException e )
                     {
-                        LOG.error( e.getMessage() );
+                        LOG.error( e.getMessage(), e );
                     }
                 }
             }

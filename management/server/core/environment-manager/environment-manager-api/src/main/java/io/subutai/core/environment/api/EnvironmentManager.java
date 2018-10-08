@@ -2,7 +2,6 @@ package io.subutai.core.environment.api;
 
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,7 +27,7 @@ import io.subutai.common.security.SshKeys;
 import io.subutai.core.environment.api.exception.EnvironmentCreationException;
 import io.subutai.core.environment.api.exception.EnvironmentDestructionException;
 import io.subutai.core.environment.api.exception.EnvironmentManagerException;
-import io.subutai.hub.share.quota.ContainerQuota;
+import io.subutai.bazaar.share.quota.ContainerQuota;
 
 
 public interface EnvironmentManager
@@ -75,7 +74,7 @@ public interface EnvironmentManager
      * new quota
      * @param async true - env will be created in background, false - caller will block
      */
-    EnvironmentCreationRef modifyEnvironment( String environmentId, Topology topology, List<String> removedContainers,
+    EnvironmentCreationRef modifyEnvironment( String environmentId, Topology topology, Set<String> removedContainers,
                                               Map<String, ContainerQuota> changedContainers, boolean async )
             throws EnvironmentModificationException, EnvironmentNotFoundException;
 
@@ -263,7 +262,7 @@ public interface EnvironmentManager
 
     /**
      * Adds ssh key to environment db entity. This method does not add the key to containers. This is a workaround to
-     * allow Hub module to modify list of ssh keys inside environment db record. After call to this method, caller
+     * allowbazaar module to modify list of ssh keys inside environment db record. After call to this method, caller
      * should reload environment using EnvironmentManager@loadEnvironment
      */
     void addSshKeyToEnvironmentEntity( String environmentId, String sshKey ) throws EnvironmentNotFoundException;
@@ -276,7 +275,7 @@ public interface EnvironmentManager
     void updateContainerHostname( final String environmentId, final String containerId, final String hostname )
             throws EnvironmentNotFoundException, PeerException;
 
-    Set<String> getDeletedEnvironmentsFromHub();
+    Set<String> getDeletedEnvironmentsFromBazaar();
 
     //called by local client
     void placeEnvironmentInfoByContainerIp( String containerIp ) throws PeerException, CommandException;

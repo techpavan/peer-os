@@ -9,7 +9,7 @@ function EnvironmentSimpleViewCtrl($scope, $rootScope, environmentService, track
 
 	var vm = this;
 
-	checkCDNToken(templateSrv, $rootScope)
+//	checkCDNToken(templateSrv, $rootScope)
 
 	var GRID_CELL_SIZE = 100;
 	var containerSettingMenu = $('.js-dropen-menu');
@@ -83,7 +83,7 @@ function EnvironmentSimpleViewCtrl($scope, $rootScope, environmentService, track
     }
 
     loadTemplates();
-    loadOwnTemplates();
+//    loadOwnTemplates();
 
     $rootScope.$on('cdnTokenSet', function(event, data){
         loadOwnTemplates();
@@ -305,6 +305,7 @@ function EnvironmentSimpleViewCtrl($scope, $rootScope, environmentService, track
 
 				$rootScope.notificationsUpdate = 'buildEnvironment';
 			}).error(function (error) {
+			    ngDialog.closeAll();
 				if (error && error.ERROR === undefined) {
 					VARS_MODAL_ERROR(SweetAlert, 'Error: ' + error);
 				} else {
@@ -441,6 +442,7 @@ function EnvironmentSimpleViewCtrl($scope, $rootScope, environmentService, track
 			initScrollbar();
 			$rootScope.notificationsUpdate = 'modifyEnvironment';
 		}).error(function (error) {
+		    ngDialog.closeAll();
             if (error && error.ERROR === undefined) {
                 VARS_MODAL_ERROR(SweetAlert, 'Error: ' + error);
             } else {
